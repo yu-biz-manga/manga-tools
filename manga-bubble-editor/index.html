@@ -377,6 +377,25 @@ let moveIdx = -1;
 let moveOffX = 0, moveOffY = 0;
 let moveMoved = false;
 
+// Resize state
+let isResizing = false;
+let resizeIdx = -1;
+let resizeAnchorX = 0, resizeAnchorY = 0;
+let resizeMoved = false;
+
+const CORNER_CURSORS = ['nwse-resize', 'nesw-resize', 'nesw-resize', 'nwse-resize'];
+
+function getHandleHit(p) {
+    if (selectedIdx < 0) return -1;
+    const b = bubbles[selectedIdx];
+    const hs = Math.max(6, 8 / scale);
+    const corners = [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]];
+    for (let i = 0; i < 4; i++) {
+        if (Math.abs(p.x - corners[i][0]) <= hs && Math.abs(p.y - corners[i][1]) <= hs) return i;
+    }
+    return -1;
+}
+
 // ── File loading ──────────────────────────────────────────────────────────────
 
 document.getElementById('fileInput').addEventListener('change', e => loadImage(e.target.files[0]));
@@ -427,6 +446,20 @@ canvas.addEventListener('mousedown', e => {
     if (!img) return;
     const p = toCanvas(e);
 
+    // Resize handle hit on selected bubble?
+    const handleHit = getHandleHit(p);
+    if (handleHit >= 0) {
+        const b = bubbles[selectedIdx];
+        const anchors = [[b.x+b.w, b.y+b.h], [b.x, b.y+b.h], [b.x+b.w, b.y], [b.x, b.y]];
+        saveHistory();
+        isResizing = true;
+        resizeIdx = selectedIdx;
+        resizeAnchorX = anchors[handleHit][0];
+        resizeAnchorY = anchors[handleHit][1];
+        resizeMoved = false;
+        return;
+    }
+
     // Click on existing bubble?
     let hit = -1;
     for (let i = bubbles.length - 1; i >= 0; i--) {
@@ -457,6 +490,18 @@ canvas.addEventListener('mousemove', e => {
     if (!img) return;
     const p = toCanvas(e);
 
+    if (isResizing && resizeIdx >= 0) {
+        const b = bubbles[resizeIdx];
+        const nx = Math.min(p.x, resizeAnchorX);
+        const ny = Math.min(p.y, resizeAnchorY);
+        const nw = Math.abs(p.x - resizeAnchorX);
+        const nh = Math.abs(p.y - resizeAnchorY);
+        if (nw >= 8 && nh >= 8) { b.x = nx; b.y = ny; b.w = nw; b.h = nh; }
+        render();
+        canvas.style.cursor = 'nwse-resize';
+        return;
+    }
+
     if (isMoving && moveIdx >= 0) {
         if (!moveMoved) { saveHistory(); moveMoved = true; }
         bubbles[moveIdx].x = p.x - moveOffX;
@@ -466,9 +511,14 @@ canvas.addEventListener('mousemove', e => {
         return;
     }
 
-    // Cursor style
-    let onBubble = bubbles.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-    canvas.style.cursor = onBubble ? 'move' : 'crosshair';
+    // Cursor style: handle > bubble > crosshair
+    const hh = getHandleHit(p);
+    if (hh >= 0) {
+        canvas.style.cursor = CORNER_CURSORS[hh];
+    } else {
+        let onBubble = bubbles.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
+        canvas.style.cursor = onBubble ? 'move' : 'crosshair';
+    }
 
     if (!isDrawing) return;
     dragCurX = p.x; dragCurY = p.y;
@@ -477,6 +527,12 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseup', e => {
+    if (isResizing) {
+        isResizing = false;
+        resizeIdx = -1;
+        render();
+        return;
+    }
     if (isMoving) {
         isMoving = false;
         moveIdx = -1;
@@ -515,6 +571,8 @@ canvas.addEventListener('mouseup', e => {
 });
 
 canvas.addEventListener('mouseleave', () => {
+    isResizing = false;
+    resizeIdx = -1;
     isMoving = false;
     moveIdx = -1;
     if (isDrawing) { isDrawing = false; render(); }

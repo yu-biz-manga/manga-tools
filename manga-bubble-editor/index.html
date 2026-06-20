@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>マンガ フキダシ編集ツール</title>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -318,7 +318,14 @@
             <select id="fontFamily" onchange="onStyleChange()">
                 <option value="'Noto Sans JP', sans-serif">Noto Sans JP（ゴシック）</option>
                 <option value="serif">明朝体</option>
-                <option value="'Arial Black', sans-serif">Bold（太字）</option>
+            </select>
+
+            <span class="field-label">太さ</span>
+            <select id="fontWeight" onchange="onStyleChange()">
+                <option value="300">細い (Light)</option>
+                <option value="400">普通 (Regular)</option>
+                <option value="700">太字 (Bold)</option>
+                <option value="900">極太 (Black)</option>
             </select>
 
             <span class="field-label">フォントサイズ <span id="fontSizeVal" class="font-size-val"></span></span>
@@ -363,6 +370,12 @@ let history = [];
 let isDrawing = false;
 let dragStartX = 0, dragStartY = 0;
 let dragCurX = 0, dragCurY = 0;
+
+// Move state
+let isMoving = false;
+let moveIdx = -1;
+let moveOffX = 0, moveOffY = 0;
+let moveMoved = false;
 
 // ── File loading ──────────────────────────────────────────────────────────────
 
@@ -425,6 +438,11 @@ canvas.addEventListener('mousedown', e => {
 
     if (hit >= 0) {
         selectBubble(hit);
+        isMoving = true;
+        moveIdx = hit;
+        moveOffX = p.x - bubbles[hit].x;
+        moveOffY = p.y - bubbles[hit].y;
+        moveMoved = false;
         return;
     }
 
@@ -439,9 +457,18 @@ canvas.addEventListener('mousemove', e => {
     if (!img) return;
     const p = toCanvas(e);
 
+    if (isMoving && moveIdx >= 0) {
+        if (!moveMoved) { saveHistory(); moveMoved = true; }
+        bubbles[moveIdx].x = p.x - moveOffX;
+        bubbles[moveIdx].y = p.y - moveOffY;
+        render();
+        canvas.style.cursor = 'grabbing';
+        return;
+    }
+
     // Cursor style
     let onBubble = bubbles.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-    canvas.style.cursor = onBubble ? 'pointer' : 'crosshair';
+    canvas.style.cursor = onBubble ? 'move' : 'crosshair';
 
     if (!isDrawing) return;
     dragCurX = p.x; dragCurY = p.y;
@@ -450,6 +477,13 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseup', e => {
+    if (isMoving) {
+        isMoving = false;
+        moveIdx = -1;
+        moveMoved = false;
+        render();
+        return;
+    }
     if (!isDrawing) return;
     isDrawing = false;
     const p = toCanvas(e);
@@ -470,6 +504,7 @@ canvas.addEventListener('mouseup', e => {
         textColor: '#000000',
         fontSize: Math.max(10, Math.min(40, Math.round(h * 0.28))),
         fontFamily: "'Noto Sans JP', sans-serif",
+        fontWeight: '400',
         vertical: false,
     });
     selectedIdx = bubbles.length - 1;
@@ -480,6 +515,8 @@ canvas.addEventListener('mouseup', e => {
 });
 
 canvas.addEventListener('mouseleave', () => {
+    isMoving = false;
+    moveIdx = -1;
     if (isDrawing) { isDrawing = false; render(); }
 });
 
@@ -509,9 +546,9 @@ function render() {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             if (b.vertical) {
-                drawVerticalFittedText(b.text, b.x, b.y, b.w, b.h, b.fontSize, b.fontFamily);
+                drawVerticalFittedText(b.text, b.x, b.y, b.w, b.h, b.fontSize, b.fontFamily, b.fontWeight || '400');
             } else {
-                drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - 12, b.h - 12, b.fontSize, b.fontFamily);
+                drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - 12, b.h - 12, b.fontSize, b.fontFamily, b.fontWeight || '400');
             }
         }
 
@@ -547,8 +584,8 @@ function drawSelectionRect() {
     ctx.restore();
 }
 
-function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font) {
-    ctx.font = `${fontSize}px ${font}`;
+function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font, weight) {
+    ctx.font = `${weight} ${fontSize}px ${font}`;
     const lines = wrapText(text, maxW);
     const lh = fontSize * 1.45;
     const totalH = lines.length * lh;
@@ -557,14 +594,14 @@ function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font) {
     if (totalH > maxH || lines.some(l => ctx.measureText(l).width > maxW)) {
         const f = Math.min(maxH / totalH, maxW / Math.max(...lines.map(l => ctx.measureText(l).width)));
         const next = Math.max(7, fontSize * f * 0.95);
-        if (next < fontSize) { drawFittedText(text, cx, cy, maxW, maxH, next, font); return; }
+        if (next < fontSize) { drawFittedText(text, cx, cy, maxW, maxH, next, font, weight); return; }
     }
 
     const startY = cy - totalH / 2 + fontSize * 0.5;
     lines.forEach((line, i) => ctx.fillText(line, cx, startY + i * lh));
 }
 
-function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font) {
+function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font, weight) {
     const pad = 8;
     const availW = bw - pad * 2;
     const availH = bh - pad * 2;
@@ -595,10 +632,10 @@ function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font) {
     if (neededW > availW || charH > availH) {
         const s = Math.min(availW / Math.max(neededW, 1), availH / charH);
         const next = Math.max(7, fontSize * s * 0.95);
-        if (next < fontSize) { drawVerticalFittedText(text, bx, by, bw, bh, next, font); return; }
+        if (next < fontSize) { drawVerticalFittedText(text, bx, by, bw, bh, next, font, weight); return; }
     }
 
-    ctx.font = `${fontSize}px ${font}`;
+    ctx.font = `${weight} ${fontSize}px ${font}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -685,6 +722,7 @@ function updateEditPanel() {
     const b = bubbles[selectedIdx];
     document.getElementById('bubbleTextInput').value = b.text;
     document.getElementById('fontFamily').value = b.fontFamily;
+    document.getElementById('fontWeight').value = b.fontWeight || '400';
     document.getElementById('fontSize').value = b.fontSize;
     document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
     document.getElementById('fillColor').value = b.fillColor;
@@ -712,10 +750,11 @@ function onTextInput() {
 function onStyleChange() {
     if (selectedIdx < 0) return;
     const b = bubbles[selectedIdx];
-    b.fontFamily = document.getElementById('fontFamily').value;
-    b.fontSize   = parseInt(document.getElementById('fontSize').value);
-    b.fillColor  = document.getElementById('fillColor').value;
-    b.textColor  = document.getElementById('textColor').value;
+    b.fontFamily  = document.getElementById('fontFamily').value;
+    b.fontWeight  = document.getElementById('fontWeight').value;
+    b.fontSize    = parseInt(document.getElementById('fontSize').value);
+    b.fillColor   = document.getElementById('fillColor').value;
+    b.textColor   = document.getElementById('textColor').value;
     document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
     render();
 }

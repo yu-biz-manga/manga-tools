@@ -47,6 +47,13 @@
             overflow: hidden;
         }
 
+        .sidebar-body {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
         .upload-area {
             margin: 12px;
             border: 2px dashed #0f3460;
@@ -74,9 +81,8 @@
         }
 
         .bubble-list {
-            flex: 1;
-            overflow-y: auto;
             padding: 4px 8px;
+            min-height: 48px;
         }
 
         .bubble-item {
@@ -110,7 +116,6 @@
         .edit-panel {
             border-top: 1px solid #0f3460;
             padding: 10px 12px;
-            flex-shrink: 0;
         }
 
         .field-label {
@@ -283,10 +288,13 @@
 <header>
     <h1>マンガ フキダシ編集</h1>
     <div class="toolbar">
-        <span class="zoom-info" id="zoomInfo"></span>
         <button onclick="document.getElementById('fileInput').click()">📂 画像を開く</button>
         <input type="file" id="fileInput" accept="image/*" style="display:none">
         <button id="undoBtn" onclick="undo()" disabled>↩ 元に戻す</button>
+        <button id="zoomOutBtn" onclick="setZoom(scale / 1.25)" disabled>－</button>
+        <span class="zoom-info" id="zoomInfo"></span>
+        <button id="zoomResetBtn" onclick="setZoom(fitScale)" disabled>fit</button>
+        <button id="zoomInBtn"  onclick="setZoom(scale * 1.25)" disabled>＋</button>
         <button class="primary" id="dlBtn" onclick="downloadImage()" disabled>💾 ダウンロード</button>
     </div>
 </header>
@@ -299,54 +307,56 @@
             <div class="hint">または クリックして選択</div>
         </div>
 
-        <div class="section-title">フキダシ一覧</div>
-        <div class="bubble-list" id="bubbleList">
-            <div class="empty-hint">画像を読み込んだら<br>フキダシ部分をドラッグで<br>選択してください</div>
-        </div>
-
-        <div class="edit-panel" id="editPanel" style="display:none">
-            <span class="field-label">テキスト</span>
-            <textarea id="bubbleTextInput" placeholder="テキストを入力..." oninput="onTextInput()"></textarea>
-
-            <span class="field-label">文字方向</span>
-            <div class="row-2">
-                <button id="dirHoriz" class="dir-btn active" onclick="setVertical(false)">横書き</button>
-                <button id="dirVert"  class="dir-btn"        onclick="setVertical(true)">縦書き</button>
+        <div class="sidebar-body">
+            <div class="section-title">フキダシ一覧</div>
+            <div class="bubble-list" id="bubbleList">
+                <div class="empty-hint">画像を読み込んだら<br>フキダシ部分をドラッグで<br>選択してください</div>
             </div>
 
-            <span class="field-label">フォント</span>
-            <select id="fontFamily" onchange="onStyleChange()">
-                <option value="'Noto Sans JP', sans-serif">Noto Sans JP（ゴシック）</option>
-                <option value="serif">明朝体</option>
-            </select>
+            <div class="edit-panel" id="editPanel" style="display:none">
+                <span class="field-label">テキスト</span>
+                <textarea id="bubbleTextInput" placeholder="テキストを入力..." oninput="onTextInput()"></textarea>
 
-            <span class="field-label">太さ</span>
-            <select id="fontWeight" onchange="onStyleChange()">
-                <option value="300">細い (Light)</option>
-                <option value="400">普通 (Regular)</option>
-                <option value="700">太字 (Bold)</option>
-                <option value="900">極太 (Black)</option>
-            </select>
-
-            <span class="field-label">フォントサイズ <span id="fontSizeVal" class="font-size-val"></span></span>
-            <input type="range" id="fontSize" min="8" max="80" value="24" oninput="onStyleChange()">
-
-            <span class="field-label">角丸 <span id="radiusVal" class="font-size-val"></span></span>
-            <input type="range" id="cornerRadius" min="0" max="60" value="0" oninput="onStyleChange()">
-
-            <span class="field-label">塗りつぶし / テキスト色</span>
-            <div class="color-row">
-                <div class="color-field">
-                    <span class="field-label">背景</span>
-                    <input type="color" id="fillColor" value="#ffffff" oninput="onStyleChange()">
+                <span class="field-label">文字方向</span>
+                <div class="row-2">
+                    <button id="dirHoriz" class="dir-btn active" onclick="setVertical(false)">横書き</button>
+                    <button id="dirVert"  class="dir-btn"        onclick="setVertical(true)">縦書き</button>
                 </div>
-                <div class="color-field">
-                    <span class="field-label">文字</span>
-                    <input type="color" id="textColor" value="#000000" oninput="onStyleChange()">
+
+                <span class="field-label">フォント</span>
+                <select id="fontFamily" onchange="onStyleChange()">
+                    <option value="'Noto Sans JP', sans-serif">Noto Sans JP（ゴシック）</option>
+                    <option value="serif">明朝体</option>
+                </select>
+
+                <span class="field-label">太さ</span>
+                <select id="fontWeight" onchange="onStyleChange()">
+                    <option value="300">細い (Light)</option>
+                    <option value="400">普通 (Regular)</option>
+                    <option value="700">太字 (Bold)</option>
+                    <option value="900">極太 (Black)</option>
+                </select>
+
+                <span class="field-label">フォントサイズ <span id="fontSizeVal" class="font-size-val"></span></span>
+                <input type="range" id="fontSize" min="8" max="80" value="24" oninput="onStyleChange()">
+
+                <span class="field-label">角丸 <span id="radiusVal" class="font-size-val"></span></span>
+                <input type="range" id="cornerRadius" min="0" max="60" value="0" oninput="onStyleChange()">
+
+                <span class="field-label">塗りつぶし / テキスト色</span>
+                <div class="color-row">
+                    <div class="color-field">
+                        <span class="field-label">背景</span>
+                        <input type="color" id="fillColor" value="#ffffff" oninput="onStyleChange()">
+                    </div>
+                    <div class="color-field">
+                        <span class="field-label">文字</span>
+                        <input type="color" id="textColor" value="#000000" oninput="onStyleChange()">
+                    </div>
                 </div>
+
+                <button class="del-btn" onclick="deleteBubble()">🗑 この領域を削除</button>
             </div>
-
-            <button class="del-btn" onclick="deleteBubble()">🗑 この領域を削除</button>
         </div>
     </div>
 
@@ -365,6 +375,7 @@ const ctx = canvas.getContext('2d');
 
 let img = null;
 let scale = 1;
+let fitScale = 1;
 let bubbles = [];
 let selectedIdx = -1;
 let history = [];
@@ -424,6 +435,7 @@ function loadImage(file) {
             const maxW = wrap.clientWidth - 48;
             const maxH = wrap.clientHeight - 48;
             scale = Math.min(1, maxW / img.width, maxH / img.height);
+            fitScale = scale;
             canvas.width = img.width;
             canvas.height = img.height;
             canvas.style.width  = Math.round(img.width * scale) + 'px';
@@ -433,7 +445,8 @@ function loadImage(file) {
             history = [];
             document.getElementById('noImageMsg').style.display = 'none';
             document.getElementById('dlBtn').disabled = false;
-            document.getElementById('zoomInfo').textContent = `${img.width}×${img.height}px (${Math.round(scale*100)}%)`;
+            ['zoomOutBtn','zoomResetBtn','zoomInBtn'].forEach(id => document.getElementById(id).disabled = false);
+            document.getElementById('zoomInfo').textContent = `${img.width}×${img.height} (${Math.round(scale*100)}%)`;
             render();
             updateBubbleList();
             updateEditPanel();
@@ -582,6 +595,14 @@ canvas.addEventListener('mouseleave', () => {
     if (isDrawing) { isDrawing = false; render(); }
 });
 
+function setZoom(z) {
+    if (!img) return;
+    scale = Math.max(0.1, Math.min(4, z));
+    canvas.style.width  = Math.round(img.width  * scale) + 'px';
+    canvas.style.height = Math.round(img.height * scale) + 'px';
+    document.getElementById('zoomInfo').textContent = `${img.width}×${img.height} (${Math.round(scale*100)}%)`;
+}
+
 function toCanvas(e) {
     const r = canvas.getBoundingClientRect();
     return {
@@ -668,7 +689,7 @@ function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font, weight) {
         if (next < fontSize) { drawFittedText(text, cx, cy, maxW, maxH, next, font, weight); return; }
     }
 
-    const startY = cy - totalH / 2 + fontSize * 0.5;
+    const startY = cy - totalH / 2 + lh / 2;
     lines.forEach((line, i) => ctx.fillText(line, cx, startY + i * lh));
 }
 
@@ -710,13 +731,15 @@ function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font, weight, pa
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const startX = bx + bw - pad - colW / 2;
-    const startY = by + pad + charH / 2;
+    // Center columns horizontally, each column's chars vertically
+    const startX = bx + bw / 2 + (flatCols.length - 1) * colW / 2;
 
     flatCols.forEach((col, ci) => {
         const x = startX - ci * colW;
+        const colH = col.length * charH;
+        const colStartY = by + bh / 2 - colH / 2 + charH / 2;
         col.forEach((ch, ri) => {
-            const y = startY + ri * charH;
+            const y = colStartY + ri * charH;
             if (needsRotation(ch)) {
                 ctx.save();
                 ctx.translate(x, y);

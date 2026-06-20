@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マンガツール集</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        header {
+            background: #16213e;
+            border-bottom: 3px solid #e94560;
+            padding: 24px 32px;
+        }
+        .logo { font-size: 28px; font-weight: 900; color: #e94560; }
+        .logo span { color: #aaa; font-weight: 400; font-size: 14px; display: block; margin-top: 4px; }
+        main { max-width: 960px; margin: 48px auto; padding: 0 24px; }
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px;
+        }
+        .tool-card {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+            padding: 24px;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+        .tool-card:hover {
+            border-color: #e94560;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 32px rgba(233,69,96,0.15);
+        }
+        .tool-icon { font-size: 36px; margin-bottom: 14px; }
+        .tool-name { font-size: 17px; font-weight: 700; margin-bottom: 6px; color: #fff; }
+        .tool-desc { font-size: 13px; color: #888; line-height: 1.6; }
+        .tag {
+            display: inline-block;
+            margin-top: 12px;
+            background: rgba(233,69,96,0.15);
+            color: #e94560;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(233,69,96,0.3);
+        }
+        footer { text-align: center; padding: 48px 0 24px; color: #444; font-size: 12px; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="logo">
+        マンガツール集
+        <span>yu-biz-manga / manga-tools</span>
+    </div>
+</header>
+<main>
+    <div class="section-title">利用可能なツール</div>
+    <div class="tools-grid">
+
+        <a class="tool-card" href="manga-bubble-editor/">
+            <div class="tool-icon">💬</div>
+            <div class="tool-name">フキダシ編集ツール</div>
+            <div class="tool-desc">マンガのフキダシ部分をドラッグで選択してテキストを差し替える。フォント・色・サイズの調整に対応。</div>
+            <span class="tag">画像編集</span>
+        </a>
+
+        <!-- 今後のツールをここに追加 -->
+
+    </div>
+</main>
+<footer>yu-biz-manga / manga-tools</footer>
+</body>
+</html>

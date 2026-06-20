@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マンガ フキダシ編集ツール</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: #16213e;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px solid #e94560;
+            flex-shrink: 0;
+        }
+
+        h1 { font-size: 16px; font-weight: 900; color: #e94560; white-space: nowrap; }
+
+        .app {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: #16213e;
+            border-right: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .upload-area {
+            margin: 12px;
+            border: 2px dashed #0f3460;
+            border-radius: 8px;
+            padding: 20px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            flex-shrink: 0;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #e94560;
+            background: rgba(233,69,96,0.05);
+        }
+        .upload-area .icon { font-size: 28px; margin-bottom: 6px; }
+        .upload-area .hint { font-size: 11px; color: #666; margin-top: 4px; }
+
+        .section-title {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #555;
+            padding: 10px 12px 4px;
+            flex-shrink: 0;
+        }
+
+        .bubble-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 8px;
+        }
+
+        .bubble-item {
+            background: #0f3460;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .bubble-item:hover { background: #1a4a7a; }
+        .bubble-item.active { border-color: #e94560; }
+        .bubble-item .idx { font-size: 10px; color: #888; margin-bottom: 2px; }
+        .bubble-item .preview {
+            font-size: 12px;
+            color: #ccc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .empty-hint {
+            color: #555;
+            font-size: 12px;
+            padding: 8px;
+            line-height: 1.6;
+        }
+
+        /* ===== EDIT PANEL ===== */
+        .edit-panel {
+            border-top: 1px solid #0f3460;
+            padding: 10px 12px;
+            flex-shrink: 0;
+        }
+
+        .field-label {
+            display: block;
+            font-size: 10px;
+            color: #888;
+            margin-bottom: 3px;
+            margin-top: 8px;
+        }
+        .field-label:first-child { margin-top: 0; }
+
+        textarea {
+            width: 100%;
+            background: #0a1a33;
+            border: 1px solid #1a5276;
+            color: #eee;
+            border-radius: 6px;
+            padding: 7px 9px;
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 13px;
+            resize: none;
+            height: 70px;
+            outline: none;
+        }
+        textarea:focus { border-color: #e94560; }
+
+        .row-2 { display: flex; gap: 8px; }
+        .row-2 > * { flex: 1; }
+
+        select {
+            width: 100%;
+            background: #0a1a33;
+            border: 1px solid #1a5276;
+            color: #eee;
+            border-radius: 6px;
+            padding: 5px 7px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .color-row {
+            display: flex;
+            gap: 8px;
+        }
+        .color-field { flex: 1; }
+        .color-field input[type=color] {
+            width: 100%;
+            height: 30px;
+            border: 1px solid #1a5276;
+            border-radius: 4px;
+            cursor: pointer;
+            background: none;
+            padding: 2px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: #e94560;
+        }
+
+        .font-size-val {
+            font-size: 11px;
+            color: #aaa;
+            text-align: right;
+        }
+
+        .del-btn {
+            width: 100%;
+            margin-top: 8px;
+            background: #3a1020;
+            color: #e94560;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            padding: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+        .del-btn:hover { background: #5a1830; }
+
+        /* ===== CANVAS AREA ===== */
+        .canvas-wrap {
+            flex: 1;
+            overflow: auto;
+            background: #0d0d1a;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        #canvas {
+            display: block;
+            box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+            image-rendering: pixelated;
+        }
+
+        /* ===== TOOLBAR ===== */
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: auto;
+        }
+
+        .toolbar button {
+            background: #0f3460;
+            color: #ccc;
+            border: 1px solid #1a5276;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        .toolbar button:hover { background: #1a4a7a; color: #fff; }
+        .toolbar button.primary {
+            background: #e94560;
+            color: white;
+            border-color: #e94560;
+        }
+        .toolbar button.primary:hover { background: #c73652; }
+        .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ===== ZOOM INFO ===== */
+        .zoom-info {
+            font-size: 11px;
+            color: #555;
+            white-space: nowrap;
+        }
+
+        #noImageMsg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #444;
+            pointer-events: none;
+        }
+        #noImageMsg .big { font-size: 48px; margin-bottom: 12px; }
+        #noImageMsg p { font-size: 14px; }
+
+        .canvas-wrap { position: relative; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>マンガ フキダシ編集</h1>
+    <div class="toolbar">
+        <span class="zoom-info" id="zoomInfo"></span>
+        <button onclick="document.getElementById('fileInput').click()">📂 画像を開く</button>
+        <input type="file" id="fileInput" accept="image/*" style="display:none">
+        <button id="undoBtn" onclick="undo()" disabled>↩ 元に戻す</button>
+        <button class="primary" id="dlBtn" onclick="downloadImage()" disabled>💾 ダウンロード</button>
+    </div>
+</header>
+
+<div class="app">
+    <div class="sidebar">
+        <div class="upload-area" id="uploadArea">
+            <div class="icon">🖼️</div>
+            <div>ここに画像をドロップ</div>
+            <div class="hint">または クリックして選択</div>
+        </div>
+
+        <div class="section-title">フキダシ一覧</div>
+        <div class="bubble-list" id="bubbleList">
+            <div class="empty-hint">画像を読み込んだら<br>フキダシ部分をドラッグで<br>選択してください</div>
+        </div>
+
+        <div class="edit-panel" id="editPanel" style="display:none">
+            <span class="field-label">テキスト</span>
+            <textarea id="bubbleTextInput" placeholder="テキストを入力..." oninput="onTextInput()"></textarea>
+
+            <span class="field-label">フォント</span>
+            <select id="fontFamily" onchange="onStyleChange()">
+                <option value="'Noto Sans JP', sans-serif">Noto Sans JP（ゴシック）</option>
+                <option value="serif">明朝体</option>
+                <option value="'Arial Black', sans-serif">Bold（太字）</option>
+            </select>
+
+            <span class="field-label">フォントサイズ <span id="fontSizeVal" class="font-size-val"></span></span>
+            <input type="range" id="fontSize" min="8" max="80" value="24" oninput="onStyleChange()">
+
+            <span class="field-label">塗りつぶし / テキスト色</span>
+            <div class="color-row">
+                <div class="color-field">
+                    <span class="field-label">背景</span>
+                    <input type="color" id="fillColor" value="#ffffff" oninput="onStyleChange()">
+                </div>
+                <div class="color-field">
+                    <span class="field-label">文字</span>
+                    <input type="color" id="textColor" value="#000000" oninput="onStyleChange()">
+                </div>
+            </div>
+
+            <button class="del-btn" onclick="deleteBubble()">🗑 この領域を削除</button>
+        </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+        <div id="noImageMsg">
+            <div class="big">📁</div>
+            <p>左のエリアから画像を開いてください</p>
+        </div>
+        <canvas id="canvas"></canvas>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let img = null;
+let scale = 1;
+let bubbles = [];
+let selectedIdx = -1;
+let history = [];
+
+// Drawing state
+let isDrawing = false;
+let dragStartX = 0, dragStartY = 0;
+let dragCurX = 0, dragCurY = 0;
+
+// ── File loading ──────────────────────────────────────────────────────────────
+
+document.getElementById('fileInput').addEventListener('change', e => loadImage(e.target.files[0]));
+
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('click', () => document.getElementById('fileInput').click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => { e.preventDefault(); uploadArea.classList.remove('dragover'); loadImage(e.dataTransfer.files[0]); });
+
+const canvasWrap = document.getElementById('canvasWrap');
+canvasWrap.addEventListener('dragover', e => e.preventDefault());
+canvasWrap.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]); });
+
+function loadImage(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const newImg = new Image();
+        newImg.onload = () => {
+            img = newImg;
+            const wrap = canvasWrap;
+            const maxW = wrap.clientWidth - 48;
+            const maxH = wrap.clientHeight - 48;
+            scale = Math.min(1, maxW / img.width, maxH / img.height);
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.style.width  = Math.round(img.width * scale) + 'px';
+            canvas.style.height = Math.round(img.height * scale) + 'px';
+            bubbles = [];
+            selectedIdx = -1;
+            history = [];
+            document.getElementById('noImageMsg').style.display = 'none';
+            document.getElementById('dlBtn').disabled = false;
+            document.getElementById('zoomInfo').textContent = `${img.width}×${img.height}px (${Math.round(scale*100)}%)`;
+            render();
+            updateBubbleList();
+            updateEditPanel();
+        };
+        newImg.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+// ── Canvas mouse ──────────────────────────────────────────────────────────────
+
+canvas.addEventListener('mousedown', e => {
+    if (!img) return;
+    const p = toCanvas(e);
+
+    // Click on existing bubble?
+    let hit = -1;
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+        const b = bubbles[i];
+        if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
+            hit = i; break;
+        }
+    }
+
+    if (hit >= 0) {
+        selectBubble(hit);
+        return;
+    }
+
+    // Start drawing new bubble
+    isDrawing = true;
+    dragStartX = p.x; dragStartY = p.y;
+    dragCurX = p.x;   dragCurY = p.y;
+    deselectAll();
+});
+
+canvas.addEventListener('mousemove', e => {
+    if (!img) return;
+    const p = toCanvas(e);
+
+    // Cursor style
+    let onBubble = bubbles.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
+    canvas.style.cursor = onBubble ? 'pointer' : 'crosshair';
+
+    if (!isDrawing) return;
+    dragCurX = p.x; dragCurY = p.y;
+    render();
+    drawSelectionRect();
+});
+
+canvas.addEventListener('mouseup', e => {
+    if (!isDrawing) return;
+    isDrawing = false;
+    const p = toCanvas(e);
+    dragCurX = p.x; dragCurY = p.y;
+
+    const x = Math.min(dragStartX, dragCurX);
+    const y = Math.min(dragStartY, dragCurY);
+    const w = Math.abs(dragCurX - dragStartX);
+    const h = Math.abs(dragCurY - dragStartY);
+
+    if (w < 8 || h < 8) { render(); return; }
+
+    saveHistory();
+    bubbles.push({
+        x, y, w, h,
+        text: '',
+        fillColor: '#ffffff',
+        textColor: '#000000',
+        fontSize: Math.max(10, Math.min(40, Math.round(h * 0.28))),
+        fontFamily: "'Noto Sans JP', sans-serif",
+    });
+    selectedIdx = bubbles.length - 1;
+    render();
+    updateBubbleList();
+    updateEditPanel();
+    setTimeout(() => document.getElementById('bubbleTextInput').focus(), 50);
+});
+
+canvas.addEventListener('mouseleave', () => {
+    if (isDrawing) { isDrawing = false; render(); }
+});
+
+function toCanvas(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+        x: Math.round((e.clientX - r.left) / scale),
+        y: Math.round((e.clientY - r.top)  / scale),
+    };
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function render() {
+    if (!img) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    bubbles.forEach((b, i) => {
+        // Fill region
+        ctx.fillStyle = b.fillColor;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+
+        // Text
+        if (b.text.trim()) {
+            ctx.fillStyle = b.textColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - 12, b.h - 12, b.fontSize, b.fontFamily);
+        }
+
+        // Selection outline
+        if (i === selectedIdx) {
+            ctx.save();
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = Math.max(2, 3 / scale);
+            ctx.setLineDash([]);
+            ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+            const hs = Math.max(6, 8 / scale);
+            ctx.fillStyle = '#e94560';
+            [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]].forEach(([hx, hy]) => {
+                ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+            });
+            ctx.restore();
+        }
+    });
+}
+
+function drawSelectionRect() {
+    const x = Math.min(dragStartX, dragCurX);
+    const y = Math.min(dragStartY, dragCurY);
+    const w = Math.abs(dragCurX - dragStartX);
+    const h = Math.abs(dragCurY - dragStartY);
+    ctx.save();
+    ctx.strokeStyle = '#e94560';
+    ctx.lineWidth = Math.max(1.5, 2 / scale);
+    ctx.setLineDash([6, 3]);
+    ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    ctx.fillStyle = 'rgba(233,69,96,0.08)';
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+}
+
+function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font) {
+    ctx.font = `${fontSize}px ${font}`;
+    const lines = wrapText(text, maxW);
+    const lh = fontSize * 1.45;
+    const totalH = lines.length * lh;
+
+    // Shrink font if text overflows
+    if (totalH > maxH || lines.some(l => ctx.measureText(l).width > maxW)) {
+        const f = Math.min(maxH / totalH, maxW / Math.max(...lines.map(l => ctx.measureText(l).width)));
+        const next = Math.max(7, fontSize * f * 0.95);
+        if (next < fontSize) { drawFittedText(text, cx, cy, maxW, maxH, next, font); return; }
+    }
+
+    const startY = cy - totalH / 2 + fontSize * 0.5;
+    lines.forEach((line, i) => ctx.fillText(line, cx, startY + i * lh));
+}
+
+function wrapText(text, maxW) {
+    const lines = [];
+    text.split('\n').forEach(para => {
+        let cur = '';
+        for (const ch of para) {
+            if (ctx.measureText(cur + ch).width > maxW && cur) {
+                lines.push(cur);
+                cur = ch;
+            } else {
+                cur += ch;
+            }
+        }
+        lines.push(cur);
+    });
+    return lines.filter((_, i) => i === 0 || lines[i - 1] !== '' || lines[i] !== '');
+}
+
+// ── UI updates ────────────────────────────────────────────────────────────────
+
+function selectBubble(idx) {
+    selectedIdx = idx;
+    render();
+    updateBubbleList();
+    updateEditPanel();
+}
+
+function deselectAll() {
+    selectedIdx = -1;
+    updateBubbleList();
+    updateEditPanel();
+    render();
+}
+
+function updateBubbleList() {
+    const list = document.getElementById('bubbleList');
+    if (!bubbles.length) {
+        list.innerHTML = '<div class="empty-hint">画像を読み込んだら<br>フキダシ部分をドラッグで<br>選択してください</div>';
+        return;
+    }
+    list.innerHTML = bubbles.map((b, i) => `
+        <div class="bubble-item ${i === selectedIdx ? 'active' : ''}" onclick="selectBubble(${i})">
+            <div class="idx">フキダシ ${i + 1}</div>
+            <div class="preview">${b.text || '（テキストなし）'}</div>
+        </div>
+    `).join('');
+}
+
+function updateEditPanel() {
+    const panel = document.getElementById('editPanel');
+    if (selectedIdx < 0 || !bubbles[selectedIdx]) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'block';
+    const b = bubbles[selectedIdx];
+    document.getElementById('bubbleTextInput').value = b.text;
+    document.getElementById('fontFamily').value = b.fontFamily;
+    document.getElementById('fontSize').value = b.fontSize;
+    document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
+    document.getElementById('fillColor').value = b.fillColor;
+    document.getElementById('textColor').value = b.textColor;
+}
+
+function onTextInput() {
+    if (selectedIdx < 0) return;
+    bubbles[selectedIdx].text = document.getElementById('bubbleTextInput').value;
+    render();
+    updateBubbleList();
+}
+
+function onStyleChange() {
+    if (selectedIdx < 0) return;
+    const b = bubbles[selectedIdx];
+    b.fontFamily = document.getElementById('fontFamily').value;
+    b.fontSize   = parseInt(document.getElementById('fontSize').value);
+    b.fillColor  = document.getElementById('fillColor').value;
+    b.textColor  = document.getElementById('textColor').value;
+    document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
+    render();
+}
+
+function deleteBubble() {
+    if (selectedIdx < 0) return;
+    saveHistory();
+    bubbles.splice(selectedIdx, 1);
+    selectedIdx = -1;
+    render();
+    updateBubbleList();
+    updateEditPanel();
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+function saveHistory() {
+    history.push(JSON.parse(JSON.stringify(bubbles)));
+    if (history.length > 30) history.shift();
+    document.getElementById('undoBtn').disabled = false;
+}
+
+function undo() {
+    if (!history.length) return;
+    bubbles = history.pop();
+    selectedIdx = -1;
+    render();
+    updateBubbleList();
+    updateEditPanel();
+    document.getElementById('undoBtn').disabled = history.length === 0;
+}
+
+// ── Download ──────────────────────────────────────────────────────────────────
+
+function downloadImage() {
+    if (!img) return;
+    const prev = selectedIdx;
+    selectedIdx = -1;
+    render();
+    const a = document.createElement('a');
+    a.download = 'manga_edited.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    selectedIdx = prev;
+    render();
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+    const tag = document.activeElement.tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+    if (e.key === 'Escape') deselectAll();
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdx >= 0) deleteBubble();
+});
+</script>
+</body>
+</html>

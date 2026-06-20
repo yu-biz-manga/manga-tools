@@ -331,6 +331,9 @@
             <span class="field-label">フォントサイズ <span id="fontSizeVal" class="font-size-val"></span></span>
             <input type="range" id="fontSize" min="8" max="80" value="24" oninput="onStyleChange()">
 
+            <span class="field-label">角丸 <span id="radiusVal" class="font-size-val"></span></span>
+            <input type="range" id="cornerRadius" min="0" max="60" value="0" oninput="onStyleChange()">
+
             <span class="field-label">塗りつぶし / テキスト色</span>
             <div class="color-row">
                 <div class="color-field">
@@ -562,6 +565,7 @@ canvas.addEventListener('mouseup', e => {
         fontFamily: "'Noto Sans JP', sans-serif",
         fontWeight: '400',
         vertical: false,
+        radius: 0,
     });
     selectedIdx = bubbles.length - 1;
     render();
@@ -594,19 +598,28 @@ function render() {
     ctx.drawImage(img, 0, 0);
 
     bubbles.forEach((b, i) => {
-        // Fill region
+        // Fill region (rounded if radius set)
         ctx.fillStyle = b.fillColor;
-        ctx.fillRect(b.x, b.y, b.w, b.h);
+        const r = Math.min(b.radius || 0, b.w / 2, b.h / 2);
+        if (r > 0) {
+            ctx.beginPath();
+            ctx.roundRect(b.x, b.y, b.w, b.h, r);
+            ctx.fill();
+        } else {
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+        }
 
         // Text
         if (b.text.trim()) {
             ctx.fillStyle = b.textColor;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            // Inset so text keeps clear of rounded corners, but otherwise hug the box
+            const pad = 2 + r * 0.3;
             if (b.vertical) {
-                drawVerticalFittedText(b.text, b.x, b.y, b.w, b.h, b.fontSize, b.fontFamily, b.fontWeight || '400');
+                drawVerticalFittedText(b.text, b.x, b.y, b.w, b.h, b.fontSize, b.fontFamily, b.fontWeight || '400', pad);
             } else {
-                drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - 12, b.h - 12, b.fontSize, b.fontFamily, b.fontWeight || '400');
+                drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - pad * 2, b.h - pad * 2, b.fontSize, b.fontFamily, b.fontWeight || '400');
             }
         }
 
@@ -645,13 +658,13 @@ function drawSelectionRect() {
 function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font, weight) {
     ctx.font = `${weight} ${fontSize}px ${font}`;
     const lines = wrapText(text, maxW);
-    const lh = fontSize * 1.45;
+    const lh = fontSize * 1.2;
     const totalH = lines.length * lh;
 
     // Shrink font if text overflows
     if (totalH > maxH || lines.some(l => ctx.measureText(l).width > maxW)) {
         const f = Math.min(maxH / totalH, maxW / Math.max(...lines.map(l => ctx.measureText(l).width)));
-        const next = Math.max(7, fontSize * f * 0.95);
+        const next = Math.max(7, fontSize * f * 0.98);
         if (next < fontSize) { drawFittedText(text, cx, cy, maxW, maxH, next, font, weight); return; }
     }
 
@@ -659,12 +672,12 @@ function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font, weight) {
     lines.forEach((line, i) => ctx.fillText(line, cx, startY + i * lh));
 }
 
-function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font, weight) {
-    const pad = 8;
+function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font, weight, pad) {
+    if (pad == null) pad = 2;
     const availW = bw - pad * 2;
     const availH = bh - pad * 2;
-    const charH = fontSize * 1.25;
-    const colW  = fontSize * 1.1;
+    const charH = fontSize * 1.05;
+    const colW  = fontSize * 1.05;
 
     const charsPerCol = Math.max(1, Math.floor(availH / charH));
 
@@ -689,8 +702,8 @@ function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font, weight) {
 
     if (neededW > availW || charH > availH) {
         const s = Math.min(availW / Math.max(neededW, 1), availH / charH);
-        const next = Math.max(7, fontSize * s * 0.95);
-        if (next < fontSize) { drawVerticalFittedText(text, bx, by, bw, bh, next, font, weight); return; }
+        const next = Math.max(7, fontSize * s * 0.98);
+        if (next < fontSize) { drawVerticalFittedText(text, bx, by, bw, bh, next, font, weight, pad); return; }
     }
 
     ctx.font = `${weight} ${fontSize}px ${font}`;
@@ -783,6 +796,8 @@ function updateEditPanel() {
     document.getElementById('fontWeight').value = b.fontWeight || '400';
     document.getElementById('fontSize').value = b.fontSize;
     document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
+    document.getElementById('cornerRadius').value = b.radius || 0;
+    document.getElementById('radiusVal').textContent = (b.radius || 0) + 'px';
     document.getElementById('fillColor').value = b.fillColor;
     document.getElementById('textColor').value = b.textColor;
     document.getElementById('dirHoriz').classList.toggle('active', !b.vertical);
@@ -811,9 +826,11 @@ function onStyleChange() {
     b.fontFamily  = document.getElementById('fontFamily').value;
     b.fontWeight  = document.getElementById('fontWeight').value;
     b.fontSize    = parseInt(document.getElementById('fontSize').value);
+    b.radius      = parseInt(document.getElementById('cornerRadius').value);
     b.fillColor   = document.getElementById('fillColor').value;
     b.textColor   = document.getElementById('textColor').value;
     document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
+    document.getElementById('radiusVal').textContent = b.radius + 'px';
     render();
 }
 

@@ -177,6 +177,24 @@
             text-align: right;
         }
 
+        .dir-btn {
+            flex: 1;
+            background: #0a1a33;
+            border: 1px solid #1a5276;
+            color: #888;
+            border-radius: 6px;
+            padding: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .dir-btn.active {
+            background: #e94560;
+            color: #fff;
+            border-color: #e94560;
+        }
+
         .del-btn {
             width: 100%;
             margin-top: 8px;
@@ -289,6 +307,12 @@
         <div class="edit-panel" id="editPanel" style="display:none">
             <span class="field-label">テキスト</span>
             <textarea id="bubbleTextInput" placeholder="テキストを入力..." oninput="onTextInput()"></textarea>
+
+            <span class="field-label">文字方向</span>
+            <div class="row-2">
+                <button id="dirHoriz" class="dir-btn active" onclick="setVertical(false)">横書き</button>
+                <button id="dirVert"  class="dir-btn"        onclick="setVertical(true)">縦書き</button>
+            </div>
 
             <span class="field-label">フォント</span>
             <select id="fontFamily" onchange="onStyleChange()">
@@ -446,6 +470,7 @@ canvas.addEventListener('mouseup', e => {
         textColor: '#000000',
         fontSize: Math.max(10, Math.min(40, Math.round(h * 0.28))),
         fontFamily: "'Noto Sans JP', sans-serif",
+        vertical: false,
     });
     selectedIdx = bubbles.length - 1;
     render();
@@ -483,7 +508,11 @@ function render() {
             ctx.fillStyle = b.textColor;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - 12, b.h - 12, b.fontSize, b.fontFamily);
+            if (b.vertical) {
+                drawVerticalFittedText(b.text, b.x, b.y, b.w, b.h, b.fontSize, b.fontFamily);
+            } else {
+                drawFittedText(b.text, b.x + b.w / 2, b.y + b.h / 2, b.w - 12, b.h - 12, b.fontSize, b.fontFamily);
+            }
         }
 
         // Selection outline
@@ -533,6 +562,70 @@ function drawFittedText(text, cx, cy, maxW, maxH, fontSize, font) {
 
     const startY = cy - totalH / 2 + fontSize * 0.5;
     lines.forEach((line, i) => ctx.fillText(line, cx, startY + i * lh));
+}
+
+function drawVerticalFittedText(text, bx, by, bw, bh, fontSize, font) {
+    const pad = 8;
+    const availW = bw - pad * 2;
+    const availH = bh - pad * 2;
+    const charH = fontSize * 1.25;
+    const colW  = fontSize * 1.1;
+
+    const charsPerCol = Math.max(1, Math.floor(availH / charH));
+
+    // Split by newline to force column breaks
+    const paras = text.split('\n');
+    const cols = [];
+    paras.forEach(para => {
+        const col = [];
+        for (const ch of para) col.push(ch);
+        cols.push(col);
+    });
+    const flatCols = [];
+    cols.forEach(col => {
+        for (let i = 0; i < col.length; i += charsPerCol) {
+            flatCols.push(col.slice(i, i + charsPerCol));
+        }
+        if (col.length === 0) flatCols.push([]);
+    });
+
+    const totalCols = flatCols.length;
+    const neededW = totalCols * colW;
+
+    if (neededW > availW || charH > availH) {
+        const s = Math.min(availW / Math.max(neededW, 1), availH / charH);
+        const next = Math.max(7, fontSize * s * 0.95);
+        if (next < fontSize) { drawVerticalFittedText(text, bx, by, bw, bh, next, font); return; }
+    }
+
+    ctx.font = `${fontSize}px ${font}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const startX = bx + bw - pad - colW / 2;
+    const startY = by + pad + charH / 2;
+
+    flatCols.forEach((col, ci) => {
+        const x = startX - ci * colW;
+        col.forEach((ch, ri) => {
+            const y = startY + ri * charH;
+            if (needsRotation(ch)) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(Math.PI / 2);
+                ctx.fillText(ch, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.fillText(ch, x, y);
+            }
+        });
+    });
+}
+
+function needsRotation(ch) {
+    const c = ch.charCodeAt(0);
+    if (c >= 0x21 && c <= 0x7E) return true;
+    return '…‥ー〜～―─'.includes(ch);
 }
 
 function wrapText(text, maxW) {
@@ -596,6 +689,17 @@ function updateEditPanel() {
     document.getElementById('fontSizeVal').textContent = b.fontSize + 'px';
     document.getElementById('fillColor').value = b.fillColor;
     document.getElementById('textColor').value = b.textColor;
+    document.getElementById('dirHoriz').classList.toggle('active', !b.vertical);
+    document.getElementById('dirVert').classList.toggle('active',   b.vertical);
+}
+
+function setVertical(v) {
+    if (selectedIdx < 0) return;
+    saveHistory();
+    bubbles[selectedIdx].vertical = v;
+    document.getElementById('dirHoriz').classList.toggle('active', !v);
+    document.getElementById('dirVert').classList.toggle('active',  v);
+    render();
 }
 
 function onTextInput() {

@@ -399,10 +399,10 @@ let resizeMoved = false;
 
 const CORNER_CURSORS = ['nwse-resize', 'nesw-resize', 'nesw-resize', 'nwse-resize'];
 
-function getHandleHit(p) {
+function getHandleHit(p, hitSize) {
     if (selectedIdx < 0) return -1;
     const b = bubbles[selectedIdx];
-    const hs = Math.max(6, 8 / scale);
+    const hs = hitSize != null ? hitSize : Math.max(6, 8 / scale);
     const corners = [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]];
     for (let i = 0; i < 4; i++) {
         if (Math.abs(p.x - corners[i][0]) <= hs && Math.abs(p.y - corners[i][1]) <= hs) return i;
@@ -456,14 +456,23 @@ function loadImage(file) {
     reader.readAsDataURL(file);
 }
 
-// ── Canvas mouse ──────────────────────────────────────────────────────────────
+// ── Canvas pointer (mouse + touch) ───────────────────────────────────────────
 
-canvas.addEventListener('mousedown', e => {
+function ptFromMouse(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: Math.round((e.clientX - r.left) / scale), y: Math.round((e.clientY - r.top) / scale) };
+}
+
+function ptFromTouch(t) {
+    const r = canvas.getBoundingClientRect();
+    return { x: Math.round((t.clientX - r.left) / scale), y: Math.round((t.clientY - r.top) / scale) };
+}
+
+function handleDown(p, isTouch) {
     if (!img) return;
-    const p = toCanvas(e);
+    const touchHs = isTouch ? Math.max(20, 24 / scale) : undefined;
 
-    // Resize handle hit on selected bubble?
-    const handleHit = getHandleHit(p);
+    const handleHit = getHandleHit(p, touchHs);
     if (handleHit >= 0) {
         const b = bubbles[selectedIdx];
         const anchors = [[b.x+b.w, b.y+b.h], [b.x, b.y+b.h], [b.x+b.w, b.y], [b.x, b.y]];
@@ -472,128 +481,90 @@ canvas.addEventListener('mousedown', e => {
         resizeIdx = selectedIdx;
         resizeAnchorX = anchors[handleHit][0];
         resizeAnchorY = anchors[handleHit][1];
-        resizeMoved = false;
         return;
     }
 
-    // Click on existing bubble?
     let hit = -1;
     for (let i = bubbles.length - 1; i >= 0; i--) {
         const b = bubbles[i];
-        if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-            hit = i; break;
-        }
+        if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { hit = i; break; }
     }
-
     if (hit >= 0) {
         selectBubble(hit);
-        isMoving = true;
-        moveIdx = hit;
-        moveOffX = p.x - bubbles[hit].x;
-        moveOffY = p.y - bubbles[hit].y;
+        isMoving = true; moveIdx = hit;
+        moveOffX = p.x - bubbles[hit].x; moveOffY = p.y - bubbles[hit].y;
         moveMoved = false;
         return;
     }
 
-    // Start drawing new bubble
     isDrawing = true;
-    dragStartX = p.x; dragStartY = p.y;
-    dragCurX = p.x;   dragCurY = p.y;
+    dragStartX = p.x; dragStartY = p.y; dragCurX = p.x; dragCurY = p.y;
     deselectAll();
-});
+}
 
-canvas.addEventListener('mousemove', e => {
+function handleMove(p) {
     if (!img) return;
-    const p = toCanvas(e);
-
     if (isResizing && resizeIdx >= 0) {
         const b = bubbles[resizeIdx];
-        const nx = Math.min(p.x, resizeAnchorX);
-        const ny = Math.min(p.y, resizeAnchorY);
-        const nw = Math.abs(p.x - resizeAnchorX);
-        const nh = Math.abs(p.y - resizeAnchorY);
+        const nx = Math.min(p.x, resizeAnchorX), ny = Math.min(p.y, resizeAnchorY);
+        const nw = Math.abs(p.x - resizeAnchorX), nh = Math.abs(p.y - resizeAnchorY);
         if (nw >= 8 && nh >= 8) { b.x = nx; b.y = ny; b.w = nw; b.h = nh; }
-        render();
-        canvas.style.cursor = 'nwse-resize';
-        return;
+        render(); return;
     }
-
     if (isMoving && moveIdx >= 0) {
         if (!moveMoved) { saveHistory(); moveMoved = true; }
-        bubbles[moveIdx].x = p.x - moveOffX;
-        bubbles[moveIdx].y = p.y - moveOffY;
-        render();
-        canvas.style.cursor = 'grabbing';
-        return;
+        bubbles[moveIdx].x = p.x - moveOffX; bubbles[moveIdx].y = p.y - moveOffY;
+        render(); return;
     }
+    if (isDrawing) {
+        dragCurX = p.x; dragCurY = p.y; render(); drawSelectionRect();
+    }
+}
 
-    // Cursor style: handle > bubble > crosshair
-    const hh = getHandleHit(p);
-    if (hh >= 0) {
-        canvas.style.cursor = CORNER_CURSORS[hh];
-    } else {
-        let onBubble = bubbles.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-        canvas.style.cursor = onBubble ? 'move' : 'crosshair';
-    }
-
-    if (!isDrawing) return;
-    dragCurX = p.x; dragCurY = p.y;
-    render();
-    drawSelectionRect();
-});
-
-canvas.addEventListener('mouseup', e => {
-    if (isResizing) {
-        isResizing = false;
-        resizeIdx = -1;
-        render();
-        return;
-    }
-    if (isMoving) {
-        isMoving = false;
-        moveIdx = -1;
-        moveMoved = false;
-        render();
-        return;
-    }
+function handleUp(p) {
+    if (isResizing) { isResizing = false; resizeIdx = -1; render(); return; }
+    if (isMoving)   { isMoving = false; moveIdx = -1; moveMoved = false; render(); return; }
     if (!isDrawing) return;
     isDrawing = false;
-    const p = toCanvas(e);
     dragCurX = p.x; dragCurY = p.y;
-
-    const x = Math.min(dragStartX, dragCurX);
-    const y = Math.min(dragStartY, dragCurY);
-    const w = Math.abs(dragCurX - dragStartX);
-    const h = Math.abs(dragCurY - dragStartY);
-
+    const x = Math.min(dragStartX, dragCurX), y = Math.min(dragStartY, dragCurY);
+    const w = Math.abs(dragCurX - dragStartX), h = Math.abs(dragCurY - dragStartY);
     if (w < 8 || h < 8) { render(); return; }
-
     saveHistory();
-    bubbles.push({
-        x, y, w, h,
-        text: '',
-        fillColor: '#ffffff',
-        textColor: '#000000',
+    bubbles.push({ x, y, w, h, text: '', fillColor: '#ffffff', textColor: '#000000',
         fontSize: Math.max(10, Math.min(40, Math.round(h * 0.28))),
-        fontFamily: "'Noto Sans JP', sans-serif",
-        fontWeight: '400',
-        vertical: false,
-        radius: 0,
-    });
+        fontFamily: "'Noto Sans JP', sans-serif", fontWeight: '400', vertical: false, radius: 0 });
     selectedIdx = bubbles.length - 1;
-    render();
-    updateBubbleList();
-    updateEditPanel();
+    render(); updateBubbleList(); updateEditPanel();
     setTimeout(() => document.getElementById('bubbleTextInput').focus(), 50);
-});
+}
 
-canvas.addEventListener('mouseleave', () => {
-    isResizing = false;
-    resizeIdx = -1;
-    isMoving = false;
-    moveIdx = -1;
+function handleCancel() {
+    isResizing = false; resizeIdx = -1;
+    isMoving   = false; moveIdx   = -1;
     if (isDrawing) { isDrawing = false; render(); }
+}
+
+// Mouse
+canvas.addEventListener('mousedown',  e => handleDown(ptFromMouse(e), false));
+canvas.addEventListener('mousemove',  e => {
+    const p = ptFromMouse(e);
+    handleMove(p);
+    if      (isResizing)               canvas.style.cursor = 'nwse-resize';
+    else if (isMoving)                 canvas.style.cursor = 'grabbing';
+    else { const hh = getHandleHit(p);
+        if (hh >= 0)                   canvas.style.cursor = CORNER_CURSORS[hh];
+        else canvas.style.cursor = bubbles.some(b => p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h) ? 'move' : 'crosshair';
+    }
 });
+canvas.addEventListener('mouseup',    e => handleUp(ptFromMouse(e)));
+canvas.addEventListener('mouseleave', () => handleCancel());
+
+// Touch
+canvas.addEventListener('touchstart',  e => { e.preventDefault(); handleDown(ptFromTouch(e.touches[0]), true); },           { passive: false });
+canvas.addEventListener('touchmove',   e => { e.preventDefault(); handleMove(ptFromTouch(e.touches[0])); },                  { passive: false });
+canvas.addEventListener('touchend',    e => { e.preventDefault(); handleUp(ptFromTouch(e.changedTouches[0])); },             { passive: false });
+canvas.addEventListener('touchcancel', () => handleCancel());
 
 function setZoom(z) {
     if (!img) return;
@@ -601,14 +572,6 @@ function setZoom(z) {
     canvas.style.width  = Math.round(img.width  * scale) + 'px';
     canvas.style.height = Math.round(img.height * scale) + 'px';
     document.getElementById('zoomInfo').textContent = `${img.width}×${img.height} (${Math.round(scale*100)}%)`;
-}
-
-function toCanvas(e) {
-    const r = canvas.getBoundingClientRect();
-    return {
-        x: Math.round((e.clientX - r.left) / scale),
-        y: Math.round((e.clientY - r.top)  / scale),
-    };
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
